@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#1f3a5f">
+<meta name="description" content="Gestor de cotizaciones: clientes, materiales, PDF y historial. Funciona sin internet.">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Cotizaciones">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<title>Gestor de Cotizaciones</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{--az:#1f3a5f;--az2:#2d5286;--bg:#eef0f3;--bd:#d5d9df;--tx:#1d232b;--mu:#67707c;--ok:#d9f2df;--okt:#14632b;--rd:#b3261e}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--tx);font-size:16px}
+header{background:var(--az);color:#fff;padding:14px 16px;font-size:1.15rem;font-weight:600}
+header{display:flex;justify-content:space-between;align-items:center;gap:10px}
+#btnInstall{display:none;padding:8px 12px;border:1px solid #fff;border-radius:6px;background:transparent;color:#fff;font:inherit;font-size:.85rem;font-weight:600;cursor:pointer;white-space:nowrap}
+#btnInstall:hover{background:rgba(255,255,255,.15)}
+@media(display-mode:standalone){#btnInstall{display:none!important}}
+nav{display:flex;background:#fff;border-bottom:1px solid var(--bd);position:sticky;top:0;z-index:5;overflow-x:auto}
+nav button{flex:1;min-width:90px;padding:14px 8px;border:0;background:none;font-size:.95rem;color:var(--mu);border-bottom:3px solid transparent;cursor:pointer}
+nav button.on{color:var(--az);border-color:var(--az);font-weight:600}
+main{max-width:1100px;margin:0 auto;padding:14px}
+.tab{display:none}.tab.on{display:block}
+.card{background:#fff;border:1px solid var(--bd);border-radius:8px;padding:16px;margin-bottom:14px}
+h2{margin:0 0 12px;font-size:1.1rem;color:var(--az)}
+label{display:block;font-size:.85rem;color:var(--mu);margin:10px 0 4px}
+input,select,textarea{width:100%;padding:12px;border:1px solid var(--bd);border-radius:6px;font:inherit;background:#fff}
+textarea{min-height:90px;resize:vertical}
+.grid{display:grid;gap:0 14px;grid-template-columns:1fr}
+button.b{padding:13px 18px;border:0;border-radius:6px;background:var(--az);color:#fff;font:inherit;font-weight:600;cursor:pointer;width:100%;margin-top:12px}
+button.b:hover{background:var(--az2)}
+button.s{background:#fff;color:var(--az);border:1px solid var(--az)}
+button.s:hover{background:#eaf0f8}
+button.r{background:#fff;color:var(--rd);border:1px solid var(--rd)}
+button.r:hover{background:#fdeceb}
+.sm{padding:8px 12px!important;width:auto!important;margin:0!important;font-size:.9rem!important}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.item{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 0;border-bottom:1px solid var(--bd)}
+.item:last-child{border:0}
+.empty{color:var(--mu);text-align:center;padding:24px}
+table{width:100%;border-collapse:collapse}
+th{background:#f3f5f8;text-align:left;font-size:.85rem;padding:8px;color:var(--mu)}
+td{padding:6px 8px;border-bottom:1px solid var(--bd)}
+td input{padding:9px}
+.tot{font-weight:600;text-align:right;white-space:nowrap}
+.sum div{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--bd)}
+.sum .fin{font-size:1.25rem;font-weight:700;color:var(--az);border:0}
+.sum input{width:90px;text-align:right}
+.mode{padding:10px 14px;border-radius:6px;margin-bottom:14px;font-weight:600}
+.mode.n{background:#e3ecf7;color:var(--az)}.mode.e{background:#fff3d6;color:#7a5200}
+.badge{display:inline-block;padding:3px 10px;border-radius:12px;font-size:.8rem;background:#e3e7ec}
+.badge.Enviada{background:#dbe8fb}.badge.Aprobada{background:var(--ok);color:var(--okt)}.badge.Rechazada{background:#fadcda;color:var(--rd)}
+.best{background:var(--ok);color:var(--okt);font-weight:700}
+#logoPrev{max-height:80px;margin-top:10px;display:none}
+.modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:20;overflow:auto;padding:14px}
+.modal.on{display:block}
+.modal .card{max-width:800px;margin:20px auto}
+.scroll{overflow-x:auto}
+@media(min-width:760px){
+ .grid{grid-template-columns:1fr 1fr}
+ button.b{width:auto;min-width:200px}
+ .lay{display:grid;grid-template-columns:1fr 340px;gap:14px;align-items:start}
+}
+@media(max-width:759px){
+ #mat thead{display:none}
+ #mat tr{display:block;border:1px solid var(--bd);border-radius:6px;margin-bottom:10px;padding:6px}
+ #mat td{display:block;border:0}
+ #mat td::before{content:attr(data-l);display:block;font-size:.8rem;color:var(--mu);margin-bottom:2px}
+ .tot{text-align:left}
+}
+</style>
+</head>
+<body>
+<header><span>Gestor de Cotizaciones</span><button id="btnInstall" type="button">📲 Instalar app</button></header>
+<nav id="nav">
+ <button class="on" data-t="config">Configuración</button>
+ <button data-t="clientes">Clientes</button>
+ <button data-t="cotizador">Cotizador</button>
+ <button data-t="historial">Historial</button>
+</nav>
+<main>
+
+<section class="tab on" id="config">
+ <div class="card">
+  <h2>Datos de la empresa</h2>
+  <div class="grid">
+   <div><label>Nombre de la Empresa</label><input id="cNom"></div>
+   <div><label>NIT</label><input id="cNit"></div>
+   <div><label>Dirección</label><input id="cDir"></div>
+   <div><label>Teléfono</label><input id="cTel" type="tel"></div>
+  </div>
+  <label>Logo</label>
+  <input id="cLogo" type="file" accept="image/*">
+  <img id="logoPrev" alt="Logo">
+  <button class="b" id="btnCfg">Guardar Configuración</button>
+ </div>
+</section>
+
+<section class="tab" id="clientes">
+ <div class="card">
+  <h2>Agregar cliente</h2>
+  <div class="grid">
+   <div><label>Nombre</label><input id="kNom"></div>
+   <div><label>NIT / Cédula</label><input id="kNit"></div>
+   <div><label>Dirección</label><input id="kDir"></div>
+   <div><label>Teléfono</label><input id="kTel" type="tel"></div>
+  </div>
+  <button class="b" id="btnCli">Guardar Cliente</button>
+ </div>
+ <div class="card"><h2>Clientes guardados</h2><div id="listaCli"></div></div>
+</section>
+
+<section class="tab" id="cotizador">
+ <div class="mode n" id="modo">Nueva Cotización</div>
+ <div class="lay">
+  <div>
+   <div class="card">
+    <div class="grid">
+     <div><label>Cliente</label><select id="selCli"></select></div>
+     <div><label>Estado</label>
+      <select id="selEst"><option>Borrador</option><option>Enviada</option><option>Aprobada</option><option>Rechazada</option></select></div>
+    </div>
+   </div>
+   <div class="card">
+    <h2>Materiales</h2>
+    <div class="scroll">
+    <table id="mat"><thead><tr><th>Descripción</th><th>Cantidad</th><th>Precio Unitario</th><th>Total</th><th></th></tr></thead><tbody></tbody></table>
+    </div>
+    <div class="row">
+     <button class="b s" id="btnAdd">+ Agregar Material</button>
+     <button class="b s" id="btnImp">Importar Proveedor</button>
+    </div>
+   </div>
+   <div class="card"><label style="margin-top:0">Notas o Condiciones</label><textarea id="notas"></textarea></div>
+  </div>
+  <div>
+   <div class="card sum">
+    <h2>Resumen</h2>
+    <div><span>Subtotal</span><b id="rSub">$0</b></div>
+    <div><span>Margen de Ganancia (%)</span><input id="margen" type="number" min="0" step="any" value="0"></div>
+    <div><span>Subtotal con margen</span><b id="rMar">$0</b></div>
+    <div><span>IVA (19%)</span><b id="rIva">$0</b></div>
+    <div class="fin"><span>Total Final</span><b id="rTot">$0</b></div>
+   </div>
+   <button class="b" id="btnSave" style="width:100%">Guardar Cotización</button>
+   <button class="b r" id="btnCancel" style="width:100%;display:none">Cancelar Edición</button>
+   <button class="b s" id="btnPdf" style="width:100%">Generar y Compartir PDF</button>
+   <button class="b s" id="btnShare" style="width:100%">Compartir</button>
+  </div>
+ </div>
+</section>
+
+<section class="tab" id="historial">
+ <div class="card"><h2>Cotizaciones guardadas</h2><div id="listaHis"></div></div>
+</section>
+</main>
+
+<!-- Modal de importación -->
+<div class="modal" id="modal">
+ <div class="card">
+  <div class="item" style="border:0;padding-top:0"><h2 style="margin:0">Importar Proveedor</h2><button class="b s sm" id="mClose">Cerrar</button></div>
+  <label>Archivo (.pdf, .xlsx, .xls, .csv, .jpg, .png)</label>
+  <input type="file" id="mFile" accept=".pdf,.xlsx,.xls,.csv,.jpg,.jpeg,.png">
+  <div class="row">
+   <button class="b" id="mProc">Procesar Archivo</button>
+   <button class="b s" id="mLabor">Cargar Mano de Obra Predefinida</button>
+   <button class="b r" id="mReset">Limpiar</button>
+  </div>
+  <p id="mInfo" style="color:var(--mu);font-size:.9rem"></p>
+  <div id="mLaborBox" style="display:none"></div>
+  <div class="scroll" id="mTable"></div>
+</div>
+</div>
+
+<script>
+/* ---------- Utilidades ---------- */
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const money=n=>(Number(n)||0).toLocaleString('es-CO',{style:'currency',currency:'COP',maximumFractionDigits:2});
+const load=(k,d)=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}};
+const save=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){alert('No se pudo guardar: almacenamiento lleno o bloqueado.')}};
+
+/* ---------- Pestañas ---------- */
+function showTab(t){
+ document.querySelectorAll('.tab').forEach(s=>s.classList.toggle('on',s.id===t));
+ document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));
+ window.scrollTo(0,0);
+}
+$('nav').addEventListener('click',e=>{if(e.target.dataset.t)showTab(e.target.dataset.t)});
+
+/* ---------- Configuración ---------- */
+let logo=''; 
+function loadCfg(){
+ const c=load('config',{});
+ $('cNom').value=c.nombre||'';$('cNit').value=c.nit||'';$('cDir').value=c.dir||'';$('cTel').value=c.tel||'';
+ logo=c.logo||'';showLogo();
+}
+function showLogo(){const i=$('logoPrev');i.src=logo;i.style.display=logo?'block':'none'}
+$('cLogo').addEventListener('change',e=>{
+ const f=e.target.files[0];if(!f)return;
+ const r=new FileReader();r.onload=()=>{logo=r.result;showLogo()};r.readAsDataURL(f);
+});
+$('btnCfg').onclick=()=>{
+ save('config',{nombre:$('cNom').value.trim(),nit:$('cNit').value.trim(),dir:$('cDir').value.trim(),tel:$('cTel').value.trim(),logo});
+ alert('Configuración guardada');
+};
+
+/* ---------- Clientes ---------- */
+let clientes=load('clientes',[]);
+function renderCli(){
+ $('listaCli').innerHTML=clientes.length?clientes.map(c=>`<div class="item"><div><b>${esc(c.nombre)}</b><br><small>${esc(c.nit)} · ${esc(c.tel)} · ${esc(c.dir)}</small></div><button class="b r sm" onclick="delCli(${c.id})">Eliminar</button></div>`).join(''):'<div class="empty">Aún no hay clientes guardados</div>';
+ const v=$('selCli').value;
+ $('selCli').innerHTML='<option value="">Seleccionar cliente...</option>'+clientes.map(c=>`<option value="${c.id}">${esc(c.nombre)}</option>`).join('');
+ $('selCli').value=v;
+}
+$('btnCli').onclick=()=>{
+ const nombre=$('kNom').value.trim();
+ if(!nombre)return alert('Escribe el nombre del cliente');
+ clientes.push({id:Date.now(),nombre,nit:$('kNit').value.trim(),dir:$('kDir').value.trim(),tel:$('kTel').value.trim()});
+ save('clientes',clientes);
+ ['kNom','kNit','kDir','kTel'].forEach(i=>$(i).value='');
+ renderCli();
+};
+function delCli(id){
+ if(!confirm('¿Eliminar este cliente?'))return;
+ clientes=clientes.filter(c=>c.id!==id);save('clientes',clientes);renderCli();
+}
+
+/* ---------- Cotizador: filas y cálculos ---------- */
+function addRow(d={}){
+ const tr=document.createElement('tr');
+ tr.innerHTML=`<td data-l="Descripción"><input class="d" value="${esc(d.desc||'')}"></td>
+ <td data-l="Cantidad"><input class="q" type="number" min="0" step="any" value="${d.qty??''}"></td>
+ <td data-l="Precio Unitario"><input class="p" type="number" min="0" step="any" value="${d.price??''}"></td>
+ <td data-l="Total" class="tot">$0</td>
+ <td><button class="b r sm" type="button">Eliminar fila</button></td>`;
+ tr.querySelector('button').onclick=()=>{tr.remove();calc()};
+ $('mat').tBody.appendChild(tr);calc();
+}
+function rows(){
+ return [...$('mat').tBodies[0].rows].map(tr=>({
+  desc:tr.querySelector('.d').value.trim(),
+  qty:parseFloat(tr.querySelector('.q').value)||0,
+  price:parseFloat(tr.querySelector('.p').value)||0}));
+}
+function calc(){
+ let sub=0;
+ [...$('mat').tBodies[0].rows].forEach(tr=>{
+  const t=(parseFloat(tr.querySelector('.q').value)||0)*(parseFloat(tr.querySelector('.p').value)||0);
+  tr.querySelector('.tot').textContent=money(t);sub+=t;
+ });
+ const m=parseFloat($('margen').value)||0;
+ const conM=sub*(1+m/100),iva=conM*0.19,tot=conM+iva;
+ $('rSub').textContent=money(sub);$('rMar').textContent=money(conM);
+ $('rIva').textContent=money(iva);$('rTot').textContent=money(tot);
+ return {sub,margen:m,conM,iva,total:tot};
+}
+$('mat').addEventListener('input',calc);
+$('margen').addEventListener('input',calc);
+$('btnAdd').onclick=()=>addRow();
+
+/* ---------- Cotizaciones (historial) ---------- */
+let cots=load('cotizaciones_guardadas',[]),editId=null,snapCli=null;
+function getCli(id){return clientes.find(c=>c.id==id)||(snapCli&&snapCli.id==id?snapCli:null)}
+function setMode(){
+ const e=editId!==null;
+ $('modo').textContent=e?'Editando Cotización #'+editId:'Nueva Cotización';
+ $('modo').className='mode '+(e?'e':'n');
+ $('btnSave').textContent=e?'Actualizar Cotización':'Guardar Cotización';
+ $('btnCancel').style.display=e?'block':'none';
+}
+function newQuote(){
+ editId=null;snapCli=null;$('selCli').value='';$('selEst').value='Borrador';
+ $('mat').tBodies[0].innerHTML='';$('margen').value=0;$('notas').value='';
+ calc();setMode();
+}
+$('btnCancel').onclick=newQuote;
+$('btnSave').onclick=()=>{
+ const cli=getCli($('selCli').value),mats=rows().filter(r=>r.desc||r.qty||r.price);
+ if(!cli)return alert('Selecciona un cliente');
+ if(!mats.length)return alert('Agrega al menos un material');
+ const t=calc();
+ const q={id:editId??Date.now(),fecha:editId?(cots.find(c=>c.id===editId)||{}).fecha:new Date().toISOString(),
+  cliente:cli,materiales:mats,margen:t.margen,iva:t.iva,subtotal:t.sub,total:t.total,
+  notas:$('notas').value,estado:$('selEst').value};
+ if(editId!==null){cots=cots.map(c=>c.id===editId?q:c);alert('Cotización actualizada exitosamente')}
+ else{cots.push(q);alert('Cotización guardada exitosamente')}
+ save('cotizaciones_guardadas',cots);renderHis();newQuote();
+};
+function renderHis(){
+ $('listaHis').innerHTML=cots.length?[...cots].reverse().map(c=>`<div class="item">
+  <div><b>${esc(c.cliente.nombre)}</b> <span class="badge ${c.estado}">${c.estado}</span><br>
+  <small>${new Date(c.fecha).toLocaleDateString('es-CO')} · #${c.id}</small></div>
+  <div><b>${money(c.total)}</b></div>
+  <div class="row"><button class="b s sm" onclick="editQ(${c.id})">Ver / Editar</button><button class="b r sm" onclick="delQ(${c.id})">Eliminar</button></div></div>`).join(''):'<div class="empty">No hay cotizaciones guardadas</div>';
+}
+function editQ(id){
+ const c=cots.find(x=>x.id===id);if(!c)return;
+ newQuote();editId=id;snapCli=c.cliente;
+ if(![...$('selCli').options].some(o=>o.value==c.cliente.id))$('selCli').add(new Option(c.cliente.nombre,c.cliente.id));
+ $('selCli').value=c.cliente.id;$('selEst').value=c.estado;
+ c.materiales.forEach(addRow);$('margen').value=c.margen;$('notas').value=c.notas||'';
+ calc();setMode();showTab('cotizador');
+}
+function delQ(id){
+ if(!confirm('¿Eliminar esta cotización?'))return;
+ cots=cots.filter(c=>c.id!==id);save('cotizaciones_guardadas',cots);
+ if(editId===id)newQuote();renderHis();
+}
+
+/* ---------- PDF ---------- */
+function buildDoc(){
+ const cli=getCli($('selCli').value),mats=rows().filter(r=>r.desc||r.qty||r.price);
+ if(!cli){alert('Selecciona un cliente');return null}
+ if(!mats.length){alert('Agrega al menos un material');return null}
+ const cfg=load('config',{}),t=calc(),num=editId??Date.now(),fecha=new Date().toLocaleDateString('es-CO');
+ const th='style="background:#1f3a5f;color:#fff;padding:7px;text-align:left;font-size:12px"',td='style="padding:7px;border-bottom:1px solid #ccc;font-size:12px"';
+ const el=document.createElement('div');
+ el.style.cssText='position:absolute;left:-10000px;top:0;width:740px;background:#fff;color:#000;font-family:Arial,sans-serif;padding:10px';
+ el.innerHTML=`
+ <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #1f3a5f;padding-bottom:12px">
+  <div style="display:flex;gap:14px;align-items:center">${cfg.logo?`<img src="${cfg.logo}" style="max-height:70px;max-width:140px">`:''}
+   <div style="font-size:12px;line-height:1.5"><div style="font-size:18px;font-weight:bold;color:#1f3a5f">${esc(cfg.nombre||'')}</div>
+   ${cfg.nit?'NIT: '+esc(cfg.nit)+'<br>':''}${esc(cfg.dir||'')}<br>${esc(cfg.tel||'')}</div></div>
+  <div style="text-align:right;font-size:12px"><div style="font-size:20px;font-weight:bold;color:#1f3a5f">COTIZACIÓN</div>N° ${num}<br>Fecha: ${fecha}</div></div>
+ <div style="margin:16px 0;padding:10px;background:#f3f5f8;font-size:12px;line-height:1.6;page-break-inside:avoid">
+  <b>Cliente:</b> ${esc(cli.nombre)}<br><b>NIT/Cédula:</b> ${esc(cli.nit)}<br><b>Dirección:</b> ${esc(cli.dir)}<br><b>Teléfono:</b> ${esc(cli.tel)}</div>
+ <table style="width:100%;border-collapse:collapse">
+  <thead><tr><th ${th}>Descripción</th><th ${th} width="70">Cantidad</th><th ${th} width="110">Precio Unitario</th><th ${th} width="110">Total</th></tr></thead>
+  <tbody>${mats.map(m=>`<tr style="page-break-inside:avoid"><td ${td}>${esc(m.desc)}</td><td ${td}>${m.qty}</td><td ${td}>${money(m.price)}</td><td ${td}>${money(m.qty*m.price)}</td></tr>`).join('')}</tbody></table>
+ <div style="width:300px;margin:16px 0 0 auto;font-size:12px;page-break-inside:avoid">
+  <div style="display:flex;justify-content:space-between;padding:5px 0"><span>Subtotal</span><span>${money(t.sub)}</span></div>
+  <div style="display:flex;justify-content:space-between;padding:5px 0"><span>Margen de Ganancia (${t.margen}%)</span><span>${money(t.conM-t.sub)}</span></div>
+  <div style="display:flex;justify-content:space-between;padding:5px 0"><span>IVA (19%)</span><span>${money(t.iva)}</span></div>
+  <div style="display:flex;justify-content:space-between;padding:8px 0;border-top:2px solid #1f3a5f;font-size:15px;font-weight:bold;color:#1f3a5f"><span>Total Final</span><span>${money(t.total)}</span></div></div>
+ ${$('notas').value.trim()?`<div style="margin-top:18px;font-size:12px;page-break-inside:avoid"><b>Notas y Condiciones</b><div style="white-space:pre-wrap;margin-top:4px">${esc($('notas').value)}</div></div>`:''}
+ <div style="display:flex;justify-content:space-around;margin-top:70px;font-size:12px;page-break-inside:avoid">
+  <div style="width:40%;text-align:center;border-top:1px solid #000;padding-top:6px">Autorizado por</div>
+  <div style="width:40%;text-align:center;border-top:1px solid #000;padding-top:6px">Recibido por</div></div>`;
+ document.body.appendChild(el);
+ return {el,name:'Cotizacion_'+cli.nombre.replace(/[^\w\-]+/g,'_')+'.pdf'};
+}
+async function makePdf(){
+ const d=buildDoc();if(!d)return null;
+ const opt={margin:12,filename:d.name,image:{type:'jpeg',quality:.95},html2canvas:{scale:2,useCORS:true},
+  jsPDF:{unit:'mm',format:'letter',orientation:'portrait'},pagebreak:{mode:['css','legacy'],avoid:['tr','img']}};
+ try{const blob=await html2pdf().set(opt).from(d.el).outputPdf('blob');return {blob,name:d.name}}
+ catch(e){alert('No se pudo generar el PDF');return null}
+ finally{d.el.remove()}
+}
+function download(r){const a=document.createElement('a');a.href=URL.createObjectURL(r.blob);a.download=r.name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),4000)}
+$('btnPdf').onclick=async()=>{const r=await makePdf();if(r)download(r)};
+$('btnShare').onclick=async()=>{
+ const r=await makePdf();if(!r)return;
+ const f=new File([r.blob],r.name,{type:'application/pdf'});
+ if(navigator.share&&navigator.canShare&&navigator.canShare({files:[f]})){
+  try{await navigator.share({files:[f],title:r.name})}catch(e){}
+ }else{download(r);alert('Tu navegador no soporta el menú de compartir. El PDF se ha descargado, por favor envíalo manualmente')}
+};
+
+/* ---------- Importar proveedores ---------- */
+let prov=0,imp={}; // imp[clave]={desc,qty,prices:[p1,p2,...]}
+const LABOR=[{n:'Mantenimiento Planta',p:450000},{n:'Reparación Subestación',p:900000},{n:'Instalación Eléctrica',p:350000},{n:'Revisión y Diagnóstico',p:200000}];
+const key=s=>String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim();
+function addItems(items){
+ prov++;
+ items.forEach(it=>{
+  const k=key(it.desc);if(!k)return;
+  if(!imp[k])imp[k]={desc:it.desc,qty:it.qty||1,prices:[]};
+  imp[k].prices[prov-1]=it.price;
+ });
+ renderImp();
+}
+function renderImp(){
+ const ks=Object.keys(imp);
+ if(!ks.length){$('mTable').innerHTML='';return}
+ let h='<table><thead><tr><th>Descripción</th>';
+ for(let i=1;i<=prov;i++)h+=`<th>Proveedor ${i}</th>`;
+ h+='<th>Acción</th></tr></thead><tbody>';
+ ks.forEach(k=>{
+  const it=imp[k],vals=it.prices.filter(v=>typeof v==='number'),min=Math.min(...vals);
+  h+=`<tr><td>${esc(it.desc)}</td>`;
+  for(let i=0;i<prov;i++){const v=it.prices[i];h+=`<td class="${typeof v==='number'&&v===min&&vals.length>1?'best':''}">${typeof v==='number'?money(v):'—'}</td>`}
+  h+=`<td><button class="b sm" onclick="addFromImp('${k.replace(/'/g,"\\'")}')">Agregar a Cotización</button></td></tr>`;
+ });
+ $('mTable').innerHTML=h+'</tbody></table>';
+}
+function addFromImp(k){
+ const it=imp[k],min=Math.min(...it.prices.filter(v=>typeof v==='number'));
+ addRow({desc:it.desc,qty:it.qty,price:min});
+ resetImp();$('modal').classList.remove('on');
+}
+function resetImp(){prov=0;imp={};$('mTable').innerHTML='';$('mInfo').textContent='';$('mFile').value=''}
+$('btnImp').onclick=()=>$('modal').classList.add('on');
+$('mClose').onclick=()=>$('modal').classList.remove('on');
+$('mReset').onclick=resetImp;
+$('mLabor').onclick=()=>{
+ const b=$('mLaborBox');
+ b.style.display=b.style.display==='block'?'none':'block';
+ b.innerHTML=LABOR.map((l,i)=>`<div class="item"><span>${esc(l.n)} — <b>${money(l.p)}</b></span><button class="b s sm" onclick="addLabor(${i})">Agregar</button></div>`).join('')
+  +'<small style="color:var(--mu)">Puedes editar el precio en la tabla del cotizador.</small>';
+};
+function addLabor(i){addRow({desc:LABOR[i].n,qty:1,price:LABOR[i].p});$('mInfo').textContent='Mano de obra agregada: '+LABOR[i].n}
+$('mProc').onclick=()=>{
+ const f=$('mFile').files[0];if(!f)return alert('Selecciona un archivo');
+ const ext=f.name.split('.').pop().toLowerCase();
+ if(['xlsx','xls','csv'].includes(ext)){
+  const r=new FileReader();
+  r.onload=e=>{
+   try{
+    const wb=XLSX.read(e.target.result,{type:'array'});
+    const data=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,defval:''});
+    // Columnas asumidas: [Descripción, Cantidad, Precio Unitario]; se omiten encabezados (precio no numérico)
+    const items=data.map(r=>({desc:String(r[0]).trim(),qty:parseFloat(r[1])||1,price:parseFloat(String(r[2]).replace(/[^\d.,-]/g,'').replace(',','.'))}))
+     .filter(x=>x.desc&&!isNaN(x.price));
+    if(!items.length)return alert('No se encontraron ítems. Usa columnas: Descripción, Cantidad, Precio Unitario');
+    addItems(items);$('mInfo').textContent=items.length+' ítems leídos del Proveedor '+prov;$('mFile').value='';
+   }catch(err){alert('No se pudo leer el archivo')}
+  };
+  r.readAsArrayBuffer(f);
+ }else{
+  $('mInfo').textContent='Leyendo archivo...';
+  /* TODO OCR REAL: aquí se conectaría una API de OCR/IA (OpenAI Vision, Google Cloud Vision, etc.)
+     enviando el archivo (PDF o imagen) y recibiendo [{desc, qty, price}]. Reemplazar esta simulación. */
+  setTimeout(()=>{
+   const base=[['Cable THHN 12 AWG (rollo)',1,185000],['Breaker 20A',4,28000],['Tubería EMT 3/4"',10,9500]];
+   const items=base.map(b=>({desc:b[0],qty:b[1],price:Math.round(b[2]*(prov?0.93+Math.random()*0.14:1))}));
+   addItems(items);
+   alert('Archivo PDF/Imagen leído (Simulación). Revisa los ítems extraídos a continuación');
+   $('mInfo').textContent='Simulación: 3 ítems de ejemplo del Proveedor '+prov;$('mFile').value='';
+  },3000);
+ }
+};
+
+/* ---------- Inicio ---------- */
+loadCfg();renderCli();renderHis();addRow();setMode();
+</script>
+<script>
+/* ---------- PWA: instalación y Service Worker ---------- */
+(function(){
+ var btn=document.getElementById('btnInstall'),prompt_=null;
+ var standalone=window.matchMedia('(display-mode: standalone)').matches||window.navigator.standalone===true;
+ var iOS=/iphone|ipad|ipod/i.test(navigator.userAgent)&&!window.MSStream;
+
+ window.addEventListener('beforeinstallprompt',function(e){
+  e.preventDefault();prompt_=e;
+  if(!standalone)btn.style.display='inline-block';
+ });
+ if(iOS&&!standalone)btn.style.display='inline-block'; // iOS no dispara beforeinstallprompt
+
+ btn.addEventListener('click',function(){
+  if(prompt_){
+   prompt_.prompt();
+   prompt_.userChoice.then(function(){prompt_=null;btn.style.display='none'});
+  }else if(iOS){
+   alert('Para instalar en iPhone/iPad: toca el botón Compartir y elige "Añadir a pantalla de inicio".');
+  }
+ });
+ window.addEventListener('appinstalled',function(){prompt_=null;btn.style.display='none'});
+
+ if('serviceWorker' in navigator){
+  window.addEventListener('load',function(){
+   navigator.serviceWorker.register('./sw.js').then(function(reg){
+    reg.addEventListener('updatefound',function(){
+     var nw=reg.installing;
+     if(nw)nw.addEventListener('statechange',function(){
+      if(nw.state==='installed'&&navigator.serviceWorker.controller)console.log('Nueva versión lista: se aplicará al reabrir la app.');
+     });
+    });
+   }).catch(function(err){console.warn('Service Worker no registrado:',err)});
+  });
+ }
+})();
+</script>
+</body>
+</html>

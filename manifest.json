@@ -1,0 +1,20 @@
+{
+  "id": "./index.html",
+  "name": "Gestor de Cotizaciones",
+  "short_name": "Cotizaciones",
+  "description": "Crea, guarda y comparte cotizaciones en PDF. Funciona sin conexión.",
+  "lang": "es-CO",
+  "dir": "ltr",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#1f3a5f",
+  "theme_color": "#1f3a5f",
+  "categories": ["business", "productivity"],
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
